@@ -33,18 +33,16 @@ IC2BUS = 1
 # shutdown GPIO pin
 SHUTD_PIN = 23
 
-# reset GPIO pin
-RESET_PIN = 23
-
 
 class AMP:
     def __init__(self):
-        print("CREATE TPA2016")
-
         GPIO.setwarnings(False)
         self.i2c = smbus.SMBus(IC2BUS)
         GPIO.setmode(GPIO.BCM)
         GPIO.setup(SHUTD_PIN, GPIO.OUT)
+
+    def __del__(self):
+        GPIO.cleanup()
 
     @staticmethod
     def turnoff():
@@ -54,6 +52,7 @@ class AMP:
     def turnon():
         GPIO.output(SHUTD_PIN, GPIO.HIGH)
 
+    # gain is from -28 (dB) to 30 (dB)
     def set_gain(self, gain):
         if gain > 30:
             gain = 30
@@ -82,6 +81,10 @@ class AMP:
 
         self.write(TPA2016_SETUP, setup)
 
+    def get_channel_info(self):
+        setup = self.read(TPA2016_SETUP)
+        return setup & TPA2016_SETUP_L_EN, setup & TPA2016_SETUP_R_EN
+
     # Set to OFF, 1:2, 1:4 or 1:8
     def set_agc_compression(self, compression):
         if compression > 3:
@@ -92,23 +95,40 @@ class AMP:
         agc |= compression  # set the compression ratio.
         self.write(TPA2016_AGC, agc)
 
+    def get_agc_compression(self):
+        agc = self.read(TPA2016_AGC)
+        agc &= 0x03
+        return agc
+
+    # releasevalue is between 0-31
     def set_release_control(self, release):
         if release > 0x3F:
             return  # only 6 bits!
 
         self.write(TPA2016_REL, release)
 
+    def get_release_control(self):
+        self.read(TPA2016_REL)
+
+    # attackvalue ranges from 0-31
     def set_attack_control(self, attack):
         if attack > 0x3F:
             return  # only 6 bits!
 
         self.write(TPA2016_ATK, attack)
 
+    def get_attack_control(self):
+        self.read(TPA2016_ATK)
+
+    # holdvalue is between 0-31
     def set_hold_control(self, hold):
         if hold > 0x3F:
             return  # only 6 bits!
 
         self.write(TPA2016_HOLD, hold)
+
+    def get_hold_control(self):
+        self.read(TPA2016_HOLD)
 
     def set_limit_level_on(self):
         agc = self.read(TPA2016_AGCLIMIT)
@@ -120,6 +140,11 @@ class AMP:
         agc |= 0x80  # turn on top bit
         self.write(TPA2016_AGCLIMIT, agc)
 
+    def get_limit_level_ctrl(self):
+        agc = self.read(TPA2016_AGCLIMIT)
+        return agc >> 7
+
+    # limit ranges from 0 (-6.5dBv) to 31 (9dBV)
     def set_limit_level(self, limit):
         if limit > 31:
             return
@@ -129,7 +154,11 @@ class AMP:
         agc |= limit  # set the limit level.
 
         self.write(TPA2016_AGCLIMIT, agc)
-        pass
+
+    def get_limit_level(self):
+        agc = self.read(TPA2016_AGCLIMIT)
+        agc &= 0x1F  # need bottom 5 bits
+        return agc
 
     def set_agc_max_gain(self, maxg):
         if maxg > 12:  # max gain max is 12 (30dB)
@@ -139,6 +168,11 @@ class AMP:
         agc &= ~0xF0  # mask off top 4 bits
         agc |= (maxg << 4)  # set the max gain
         self.write(TPA2016_AGC, agc)
+
+    def get_agc_max_gain(self):
+        agc = self.read(TPA2016_AGC)
+        agc &= 0xF0  # need top 4 bits
+        return agc >> 4
 
     def write(self, address, data):
         self.i2c.write_byte_data(TPA2016_I2CADDR, address, data)
