@@ -63,7 +63,10 @@ class AMP:
 
     # for querying the gain, returns in dB
     def get_gain(self):
-        return self.read(TPA2016_GAIN)
+        gain = self.read(TPA2016_GAIN)
+        if gain > 30:
+            gain = -1 * (64 - gain)
+        return gain
 
     # Turn on/off right and left channels
     def enable_channel(self, right, left):
